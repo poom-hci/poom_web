@@ -83,9 +83,10 @@ def softmax(x):
     e = np.exp(x - np.max(x)); return e / e.sum()
 
 def audio_to_mel(path):
+    from faster_whisper.audio import decode_audio   # webm/opus 지원 (built-in ffmpeg)
     sr     = AUDIO_PARAMS["sr"]
     target = int(sr * AUDIO_PARAMS["target_duration"])
-    y, _   = librosa.load(path, sr=sr, mono=True)
+    y      = decode_audio(path, sampling_rate=sr)   # librosa.load 대체
     y      = np.pad(y,(0,max(0,target-len(y))))[:target]
     mel    = librosa.feature.melspectrogram(y=y,sr=sr,n_mels=AUDIO_PARAMS["n_mels"],
                n_fft=AUDIO_PARAMS["n_fft"],hop_length=AUDIO_PARAMS["hop_length"],
