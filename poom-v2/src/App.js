@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import HomePage     from './pages/HomePage';
-import EmotionDiary from './pages/EmotionDiary';
-import PetProfile   from './pages/PetProfile';
+import HomePage        from './pages/HomePage';
+import EmotionDiary    from './pages/EmotionDiary';
+import PetProfile      from './pages/PetProfile';
 import PetRegistration from './pages/PetRegistration';
 import './App.css';
 
@@ -17,36 +17,42 @@ function load(key, fallback = null) {
 }
 
 export default function App() {
-  const [tab,           setTab]           = useState('home');
-  const [petInfo,       setPetInfo]       = useState(() => load('poom_pet'));
-  const [theme,         setTheme]         = useState(() => load('poom_theme', 'night'));
-  const [selectedBreed, setSelectedBreed] = useState(() => load('poom_breed', null));
-  const [isEditing,     setIsEditing]     = useState(false);
+  const [tab,           setTab]       = useState('home');
+  const [petInfo,       setPetInfo]   = useState(() => load('poom_pet'));
+  const [theme,         setTheme]     = useState(() => load('poom_theme', 'night'));
+  const [selectedBreed, setBreed]     = useState(() => load('poom_breed', null));
+  const [isEditing,     setIsEditing] = useState(false);
+  const [diaryKey,      setDiaryKey]  = useState(0);
+
+  const goToDiary = () => { setTab('diary'); setDiaryKey(k => k + 1); };
 
   const handlePetSave = (info) => {
     setPetInfo(info);
     localStorage.setItem('poom_pet', JSON.stringify(info));
     if (info.breedId) {
-      setSelectedBreed(info.breedId);
+      setBreed(info.breedId);
       localStorage.setItem('poom_breed', JSON.stringify(info.breedId));
     }
     setIsEditing(false);
     setTab('profile');
   };
 
-  const changeTheme = (t) => { setTheme(t); localStorage.setItem('poom_theme', JSON.stringify(t)); };
-  const changeBreed = (b) => { setSelectedBreed(b); localStorage.setItem('poom_breed', JSON.stringify(b)); };
+  const changeTheme = t => { setTheme(t); localStorage.setItem('poom_theme', JSON.stringify(t)); };
+  const changeBreed = b => { setBreed(b);  localStorage.setItem('poom_breed', JSON.stringify(b)); };
 
   const renderContent = () => {
     if (tab === 'home') return (
       <HomePage
         petInfo={petInfo}
-        theme={theme} onThemeChange={changeTheme}
+        theme={theme}         onThemeChange={changeTheme}
         selectedBreed={selectedBreed} onBreedChange={changeBreed}
         onGoRegister={() => { setIsEditing(true); setTab('profile'); }}
+        onGoToDiary={goToDiary}
       />
     );
-    if (tab === 'diary') return <EmotionDiary petName={petInfo?.name || '우리 아이'} />;
+    if (tab === 'diary') return (
+      <EmotionDiary petName={petInfo?.name || '우리 아이'} refreshKey={diaryKey} />
+    );
     if (tab === 'profile') {
       if (isEditing || !petInfo) return (
         <PetRegistration
@@ -64,14 +70,18 @@ export default function App() {
     <div className="phone-wrap">
       <div className="mobile-app">
         <div className="status-bar">
-          <span className="status-time">9:41</span>
           <span className="status-brand">품 POOM</span>
         </div>
         <div className="content-area">{renderContent()}</div>
         <nav className="bottom-nav">
           {TABS.map(t => (
-            <button key={t.id} className={"nav-tab" + (tab === t.id ? ' active' : '')}
-              onClick={() => { setTab(t.id); if (t.id !== 'profile') setIsEditing(false); }}>
+            <button key={t.id}
+              className={"nav-tab" + (tab === t.id ? ' active' : '')}
+              onClick={() => {
+                if (t.id === 'diary') { goToDiary(); }
+                else { setTab(t.id); }
+                if (t.id !== 'profile') setIsEditing(false);
+              }}>
               <span className="tab-icon">{t.icon}</span>
               <span className="tab-label">{t.label}</span>
             </button>

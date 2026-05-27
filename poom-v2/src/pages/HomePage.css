@@ -291,3 +291,50 @@
 }
 .text-talk-input:focus { outline: none; border-color: var(--accent); }
 .text-talk-input::placeholder { color: var(--text3); }
+/* ── 감정 분석 결과 박스 ── */
+.emotion-result-box {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: var(--r-xs);
+  margin: 10px 0;
+}
+.emo-res-label { font-size: 11px; color: var(--text3); font-weight: 500; }
+.emo-res-tag   { font-size: 16px; font-weight: 800; margin-left: auto; }
+.emo-res-conf  { font-size: 12px; color: var(--text3); }
+
+/* ── 감정 힌트 ── */
+.stat-emotion-hint { font-size: 10px; color: var(--text3); margin-top: 2px; }
+/* ── 홈 타이틀 ── */
+.home-title {
+  font-size: 24px; font-weight: 800;
+  color: var(--text1); padding: 20px 0 16px;
+}
+
+/* ── 배경 우하단 견종 버튼 ── */
+.room-breed-btn {
+  position: absolute; bottom: 12px; right: 12px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.22); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.3);
+  font-size: 18px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 5;
+}
+.room-breed-btn:active { transform: scale(0.9); }
+
+/* ── 최근 대화 없을 때 ── */
+.recent-empty {
+  text-align: center; padding: 24px 0;
+  font-size: 13px; color: var(--text3);
+}
+
+/* ── DiaryCard 상단 row ── */
+.diary-card-top {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 8px;
+}
+.diary-conf {
+  font-size: 11px; margin-left: 6px; opacity: 0.7;
+}
+.diary-type-tag {
+  font-size: 11px; color: var(--text3);
+  margin-top: 8px;
+}

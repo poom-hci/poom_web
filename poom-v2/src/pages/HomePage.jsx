@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import './HomePage.css';
+import { saveDiaryEntry, getDiaryEntries } from '../api';
 
 export const BREEDS = [
   { id: 'golden',    name: '골든 리트리버', emoji: '🐕' },
@@ -11,6 +12,15 @@ export const BREEDS = [
 ];
 
 const FALLBACK = '/rooms/placeholder.svg';
+
+const EMOTION_STYLE = {
+  Sadness:   { kr: '슬픔',  color: '#E8704A', bg: '#FDF0EB' },
+  Anger:     { kr: '분노',  color: '#D63031', bg: '#FFE9E8' },
+  Anxiety:   { kr: '불안',  color: '#A29BFE', bg: '#F0EEFF' },
+  Neutral:   { kr: '평온',  color: '#4CAF7D', bg: '#EBF7F1' },
+  Happiness: { kr: '행복',  color: '#FDCB6E', bg: '#FFF9EC' },
+};
+
 
 /* ── 방 이미지 ── */
 function RoomImage({ src }) {
@@ -25,12 +35,12 @@ function RoomImage({ src }) {
   );
 }
 
-/* ── 말 걸기 모달 (음성 + 텍스트) ── */
-function TalkModal({ petName, onClose }) {
+/* ── 말 걸기 모달 ── */
+function TalkModal({ petName, onClose, onEmotionResult, onSaved }) {
   const [mode,       setMode]       = useState('voice');
   const [recording,  setRecording]  = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [voiceText,  setVoiceText]  = useState('');
+  const [result,     setResult]     = useState(null);
   const [textInput,  setTextInput]  = useState('');
   const [saved,      setSaved]      = useState(false);
   const mediaRef  = useRef(null);
@@ -46,7 +56,7 @@ function TalkModal({ petName, onClose }) {
       mr.onstop = sendAudio;
       mr.start();
       setRecording(true);
-    } catch { setVoiceText('마이크 권한이 필요해요'); }
+    } catch { setResult({ text: '마이크 권한이 필요해요' }); }
   }
 
   function stopRec() {
@@ -63,12 +73,40 @@ function TalkModal({ petName, onClose }) {
     try {
       const res  = await fetch('http://localhost:5000/stt', { method: 'POST', body: form });
       const data = await res.json();
-      setVoiceText(data.text || '변환 실패');
-    } catch { setVoiceText('서버에 연결할 수 없어요 (Flask 서버 확인)'); }
+      setResult(data);
+      if (data.emotion) onEmotionResult?.(data.emotion);
+    } catch {
+      setResult({ text: '서버에 연결할 수 없어요 (Flask 서버 확인)' });
+    }
     setProcessing(false);
   }
 
-  const switchMode = m => { setMode(m); setSaved(false); };
+  async function sendText() {
+    if (!textInput.trim()) return;
+    setProcessing(true);
+    try {
+      const res  = await fetch('http://localhost:5000/analyze_text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textInput }),
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.emotion) onEmotionResult?.(data.emotion);
+    } catch {
+      setResult({ text: textInput, emotion: null });
+    }
+    setProcessing(false);
+  }
+
+  const switchMode = m => { setMode(m); setSaved(false); setResult(null); };
+  const emo = result?.emotion ? EMOTION_STYLE[result.emotion] : null;
+
+  const handleSave = async () => {
+    await saveDiaryEntry({ ...result, type: mode });
+    setSaved(true);
+    onSaved?.();
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -77,7 +115,6 @@ function TalkModal({ petName, onClose }) {
         <p className="modal-title">{petName}한테 말 걸기</p>
         <p className="modal-sub">오늘 하루 어떠셨나요? 편하게 전해보세요</p>
 
-        {/* 모드 토글 */}
         <div className="talk-mode-row">
           <button className={"talk-mode-btn" + (mode==='voice' ? ' active' : '')}
             onClick={() => switchMode('voice')}>🎤 음성</button>
@@ -96,17 +133,8 @@ function TalkModal({ petName, onClose }) {
                   : <span className="mic-icon">🎤</span>}
             </button>
             <p className="mic-hint">
-              {processing ? '변환 중...' : recording ? '탭해서 중지' : '탭해서 녹음 시작'}
+              {processing ? '분석 중...' : recording ? '탭해서 중지' : '탭해서 녹음 시작'}
             </p>
-            {voiceText && (
-              <div className="talk-result">
-                <p className="talk-result-label">📝 인식된 내용</p>
-                <p className="talk-result-text">{voiceText}</p>
-                {!saved
-                  ? <button className="btn-save-talk" onClick={() => setSaved(true)}>저장하기</button>
-                  : <p className="talk-saved">✓ 저장되었어요</p>}
-              </div>
-            )}
           </>
         ) : (
           <div className="text-talk-area">
@@ -114,14 +142,37 @@ function TalkModal({ petName, onClose }) {
               className="text-talk-input"
               placeholder={petName + "에게 하고 싶은 말을 적어보세요..."}
               value={textInput}
-              onChange={e => { setTextInput(e.target.value); setSaved(false); }}
-              rows={5}
+              onChange={e => { setTextInput(e.target.value); setSaved(false); setResult(null); }}
+              rows={4}
             />
+            <button className="btn-save-talk"
+              onClick={sendText}
+              disabled={!textInput.trim() || processing}>
+              {processing ? '분석 중...' : '감정 분석하기'}
+            </button>
+          </div>
+        )}
+
+        {result && (
+          <div className="talk-result">
+            {result.text && mode === 'voice' && (
+              <>
+                <p className="talk-result-label">📝 인식된 내용</p>
+                <p className="talk-result-text">{result.text}</p>
+              </>
+            )}
+            {emo && (
+              <div className="emotion-result-box" style={{ background: emo.bg }}>
+                <span className="emo-res-label">감정 분석 결과</span>
+                <span className="emo-res-tag" style={{ color: emo.color }}>{emo.kr}</span>
+                <span className="emo-res-conf">{Math.round((result.confidence || 0) * 100)}%</span>
+              </div>
+            )}
             {!saved
-              ? <button className="btn-save-talk"
-                  onClick={() => { if (textInput.trim()) setSaved(true); }}
-                  disabled={!textInput.trim()}>저장하기</button>
-              : <p className="talk-saved">✓ 저장되었어요</p>}
+              ? <button className="btn-save-talk" onClick={handleSave}>
+                  📖 감정일기에 저장하기
+                </button>
+              : <p className="talk-saved">✓ 감정일기에 저장되었어요</p>}
           </div>
         )}
       </div>
@@ -165,12 +216,20 @@ function RoomSheet({ theme, selectedBreed, onBreedSelect, onThemeChange, onClose
   );
 }
 
-/* ── 메인 홈페이지 ── */
-export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed, onBreedChange, onGoRegister }) {
-  const [showTalk,  setShowTalk]  = useState(false);
-  const [showSheet, setShowSheet] = useState(false);
-  const [bpm,  setBpm]  = useState(72);
-  const [temp, setTemp] = useState(36);
+/* ── 메인 ── */
+export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed, onBreedChange, onGoRegister, onGoToDiary }) {
+  const [showTalk,      setShowTalk]      = useState(false);
+  const [showSheet,     setShowSheet]     = useState(false);
+  const [bpm,           setBpm]           = useState(72);
+  const [temp,          setTemp]          = useState(36);
+  const [emotion,       setEmotion]       = useState(null);
+  const [recentEntries, setRecentEntries] = useState([]);
+
+  useEffect(() => {
+    getDiaryEntries()
+      .then(all => setRecentEntries(all.slice(0, 3)))
+      .catch(() => setRecentEntries([]));
+  }, []);
 
   const getRoomSrc = () => {
     if (theme === 'day') return '/rooms/day_empty.png';
@@ -179,10 +238,7 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   };
 
   const petName   = petInfo?.name || '우리 아이';
-  const breedName = BREEDS.find(b => b.id === selectedBreed)?.name || '강아지 선택';
-  const petAge    = petInfo?.birthDate
-    ? Math.floor((Date.now() - new Date(petInfo.birthDate)) / (1000*60*60*24*365)) + '살'
-    : '';
+  const emoStyle  = emotion ? (EMOTION_STYLE[emotion] || EMOTION_STYLE.Neutral) : null;
 
   const postControl = (action, value) => {
     fetch('http://localhost:5000/control', {
@@ -192,16 +248,18 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
     }).catch(() => {});
   };
 
-  const RECENT = [
-    { icon:'🌙', text:'오늘 많이 보고 싶었어...', time:'오늘 오후 11:20', tag:'슬픔', tagColor:'var(--accent)', tagBg:'var(--accent-bg)' },
-    { icon:'☀️', text:'공원에 다녀왔어. 네가 좋아하던 곳', time:'어제 오후 3:15', tag:'평온', tagColor:'var(--green)', tagBg:'var(--green-bg)' },
-    { icon:'🌸', text:'사진 보다 웃었어 ㅎㅎ', time:'3일 전', tag:'회복', tagColor:'var(--blue)', tagBg:'var(--blue-bg)' },
-  ];
+  const EMO_TAG = {
+    Sadness:   { color:'var(--accent)', bg:'var(--accent-bg)', label:'슬픔' },
+    Anger:     { color:'#D63031',       bg:'#FFE9E8',          label:'분노' },
+    Anxiety:   { color:'#A29BFE',       bg:'#F0EEFF',          label:'불안' },
+    Neutral:   { color:'var(--green)',  bg:'var(--green-bg)',   label:'평온' },
+    Happiness: { color:'#F39C12',       bg:'#FFF9EC',          label:'행복' },
+  };
 
   return (
     <div className="home-wrap">
 
-      {/* ── 배경 클릭 → 말 걸기 ── */}
+      {/* 배경 — 클릭 시 말 걸기 */}
       <div className="room-section" onClick={() => setShowTalk(true)}>
         <RoomImage src={getRoomSrc()} />
         <button className="theme-toggle-btn"
@@ -209,46 +267,18 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
           {theme==='night' ? '☀️' : '🌙'}
         </button>
         <div className="room-talk-hint">💬 탭해서 말 걸기</div>
-        <div className="room-bottom-bar" onClick={e => e.stopPropagation()}>
-          <button className="room-chip" onClick={() => setShowSheet(true)}>
-            <span>{BREEDS.find(b=>b.id===selectedBreed)?.emoji || '🐾'}</span>
-            <span>{breedName}</span>
-            <span className="chip-arrow">▾</span>
-          </button>
-          <span className="room-theme-lbl">{theme==='night'?'🌙 달빛':'☀️ 햇살'}</span>
-        </div>
+        {/* 견종 변경 버튼 (우하단 작게) */}
+        <button className="room-breed-btn"
+          onClick={e => { e.stopPropagation(); setShowSheet(true); }}>
+          {BREEDS.find(b=>b.id===selectedBreed)?.emoji || '🐾'}
+        </button>
       </div>
 
-      {/* ── 스크롤 콘텐츠 ── */}
       <div className="home-content">
 
-        {/* 인사 헤더 */}
+        {/* 타이틀 */}
         <div className="home-header">
-          <h1 className="home-greeting">안녕하세요 👋</h1>
-          <p className="home-sub">오늘도 {petName}가 기다리고 있어요</p>
-          {petInfo ? (
-            <div className="pet-pill">
-              <div className="pet-pill-avatar">
-                {petInfo.photo
-                  ? <img src={petInfo.photo} alt={petName} className="pet-pill-img"/>
-                  : <span>🐾</span>}
-              </div>
-              <div className="pet-pill-info">
-                <span className="pet-pill-name">{petName}</span>
-                <span className="pet-pill-sub">{petInfo.type || '반려동물'}{petAge ? ` · ${petAge}` : ''}</span>
-              </div>
-              <span className="pet-pill-arrow">›</span>
-            </div>
-          ) : (
-            <button className="pet-pill" onClick={onGoRegister} style={{cursor:'pointer'}}>
-              <div className="pet-pill-avatar"><span>🐾</span></div>
-              <div className="pet-pill-info">
-                <span className="pet-pill-name">반려동물 등록하기</span>
-                <span className="pet-pill-sub">탭해서 정보를 등록해요</span>
-              </div>
-              <span className="pet-pill-arrow">›</span>
-            </button>
-          )}
+          <h1 className="home-title">{petName}의 품</h1>
         </div>
 
         {/* 스탯 3칸 */}
@@ -275,10 +305,19 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
           </div>
           <div className="stat-card">
             <p className="stat-label">감정 상태</p>
-            <p className="stat-emotion">슬픔</p>
-            <div className="emotion-bar-bg">
-              <div className="emotion-bar-fill" style={{width:'45%'}} />
-            </div>
+            {emoStyle ? (
+              <>
+                <p className="stat-emotion" style={{color: emoStyle.color}}>{emoStyle.kr}</p>
+                <div className="emotion-bar-bg">
+                  <div className="emotion-bar-fill" style={{width:'65%', background: emoStyle.color}} />
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="stat-emotion">-</p>
+                <p className="stat-emotion-hint">말 걸기 후 분석</p>
+              </>
+            )}
           </div>
         </div>
 
@@ -298,26 +337,47 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
           </div>
         </div>
 
-        {/* 최근 대화 */}
+        {/* 최근 대화 — 감정일기 탭과 연동 */}
         <div className="recent-header">
           <span className="recent-title">최근 대화 기록</span>
-          <button className="recent-more">전체보기</button>
+          <button className="recent-more" onClick={onGoToDiary}>전체보기 →</button>
         </div>
-        {RECENT.map((r,i) => (
-          <div key={i} className="recent-item">
-            <div className="recent-icon">{r.icon}</div>
-            <div className="recent-body">
-              <p className="recent-text">{r.text}</p>
-              <p className="recent-time">{r.time}</p>
+
+        {recentEntries.length > 0 ? recentEntries.map((r, i) => {
+          const tag = EMO_TAG[r.emotion] || EMO_TAG.Neutral;
+          return (
+            <div key={r.id || i} className="recent-item">
+              <div className="recent-icon">
+                {r.type === 'voice' ? '🎤' : '✏️'}
+              </div>
+              <div className="recent-body">
+                <p className="recent-text">{r.text || '(내용 없음)'}</p>
+                <p className="recent-time">{r.date} {r.time}</p>
+              </div>
+              <span className="recent-tag" style={{color:tag.color, background:tag.bg}}>{tag.label}</span>
             </div>
-            <span className="recent-tag" style={{color:r.tagColor, background:r.tagBg}}>{r.tag}</span>
+          );
+        }) : (
+          <div className="recent-empty">
+            배경을 탭해서 첫 대화를 시작해보세요 💬
           </div>
-        ))}
+        )}
 
         <div style={{height:24}}/>
       </div>
 
-      {showTalk  && <TalkModal petName={petName} onClose={() => setShowTalk(false)} />}
+      {showTalk && (
+        <TalkModal
+          petName={petName}
+          onClose={() => setShowTalk(false)}
+          onEmotionResult={label => setEmotion(label)}
+          onSaved={() =>
+            getDiaryEntries()
+              .then(all => setRecentEntries(all.slice(0, 3)))
+              .catch(() => {})
+          }
+        />
+      )}
       {showSheet && (
         <RoomSheet theme={theme} selectedBreed={selectedBreed}
           onBreedSelect={id => { onBreedChange(id); setShowSheet(false); }}

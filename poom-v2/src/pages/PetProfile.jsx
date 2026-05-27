@@ -14,9 +14,7 @@ function InfoCard({ title, rows }) {
   return (
     <div className="pp-card">
       <p className="pp-card-title">{title}</p>
-      {rows.map((r, i) => (
-        <InfoRow key={i} label={r.label} value={r.value} valueStyle={r.style} />
-      ))}
+      {rows.map((r, i) => <InfoRow key={i} label={r.label} value={r.value} valueStyle={r.style} />)}
     </div>
   );
 }
@@ -39,7 +37,7 @@ function formatDate(dateStr) {
 }
 
 export default function PetProfile({ petInfo, onEdit }) {
-  // 추억 사진 — localStorage에 저장
+  /* 추억 사진 */
   const [photos, setPhotos] = useState(() => {
     try { return JSON.parse(localStorage.getItem('poom_photos') || '[]'); }
     catch { return []; }
@@ -56,7 +54,7 @@ export default function PetProfile({ petInfo, onEdit }) {
       localStorage.setItem('poom_photos', JSON.stringify(next));
     };
     reader.readAsDataURL(file);
-    e.target.value = '';   // 같은 파일 재업로드 허용
+    e.target.value = '';
   };
 
   const handleRemovePhoto = (idx) => {
@@ -66,34 +64,39 @@ export default function PetProfile({ petInfo, onEdit }) {
     localStorage.setItem('poom_photos', JSON.stringify(next));
   };
 
-  const age      = calcAge(petInfo.birthDate, petInfo.passedDate);
+  /* 추억 메모 */
+  const [memo, setMemo] = useState(() => {
+    try { return localStorage.getItem('poom_memo') || ''; }
+    catch { return ''; }
+  });
+
+  const handleMemoChange = (e) => {
+    const val = e.target.value;
+    setMemo(val);
+    localStorage.setItem('poom_memo', val);
+  };
+
   const together = calcAge(petInfo.birthDate, petInfo.passedDate);
 
   const basicRows = [
-    { label: '이름',     value: petInfo.name   || '-' },
-    { label: '품종',     value: petInfo.type   || '-' },
+    { label: '이름',     value: petInfo.name  || '-' },
+    { label: '품종',     value: petInfo.type  || '-' },
     { label: '생년월일', value: formatDate(petInfo.birthDate) },
-    { label: '성별',     value: petInfo.gender || '-' },
-    { label: '무게',     value: petInfo.weight ? `${petInfo.weight} kg` : '-' },
   ];
 
   const memoryRows = [
     { label: '함께한 시간',   value: together || '-' },
-    { label: '총 대화 횟수',  value: '47회' },
-    { label: '첫 대화',       value: formatDate(petInfo.passedDate) },
+    { label: '총 대화 횟수',  value: (() => {
+        try { return JSON.parse(localStorage.getItem('poom_diary_entries')||'[]').length + '회'; }
+        catch { return '0회'; }
+      })() },
     { label: '감정 회복 단계', value: '진행 중 🌱', style: { color: '#4CAF7D', fontWeight: '700' } },
-  ];
-
-  const objectRows = [
-    { label: '기본 심박수', value: '72 BPM' },
-    { label: '기본 온도',   value: '36°C' },
-    { label: '햅틱 강도',   value: '중간' },
   ];
 
   return (
     <div className="pp-wrap">
 
-      {/* 헤더 */}
+      {/* 헤더 — 날짜 없이 이름만 */}
       <div className="pp-header">
         <div className="pp-avatar">
           {petInfo.photo
@@ -101,50 +104,44 @@ export default function PetProfile({ petInfo, onEdit }) {
             : <span className="pp-avatar-emoji">🐾</span>}
         </div>
         <h2 className="pp-name">{petInfo.name}</h2>
-        <p className="pp-dates">
-          {formatDate(petInfo.birthDate)} 태어남
-          {petInfo.passedDate ? ` · ${formatDate(petInfo.passedDate)} 떠남` : ''}
-        </p>
         <button className="pp-edit-btn" onClick={onEdit}>정보 수정</button>
       </div>
 
-      <InfoCard title="기본 정보"    rows={basicRows}  />
-      <InfoCard title="함께한 기억"  rows={memoryRows} />
-      <InfoCard title="오브제 설정"  rows={objectRows} />
+      <InfoCard title="기본 정보"   rows={basicRows}  />
+      <InfoCard title="함께한 기억" rows={memoryRows} />
 
       {/* 추억 사진 */}
       <div className="pp-card">
         <p className="pp-card-title">추억 사진</p>
-
-        {/* 숨겨진 파일 인풋 */}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          onChange={handleAddPhoto}
-          hidden
-        />
-
+        <input ref={fileRef} type="file" accept="image/*" onChange={handleAddPhoto} hidden />
         <div className="photo-grid">
           {photos.map((src, i) => (
-            <div key={i} className="photo-cell photo-real"
-              onClick={() => handleRemovePhoto(i)}>
+            <div key={i} className="photo-cell photo-real" onClick={() => handleRemovePhoto(i)}>
               <img src={src} alt="" className="photo-real-img" />
               <div className="photo-del-overlay">✕</div>
             </div>
           ))}
-
-          {/* 추가 버튼 */}
-          <div className="photo-cell photo-add"
-            onClick={() => fileRef.current?.click()}>
+          <div className="photo-cell photo-add" onClick={() => fileRef.current?.click()}>
             <span className="photo-add-icon">+</span>
             <span className="photo-add-label">사진 추가</span>
           </div>
         </div>
-
         {photos.length === 0 && (
           <p className="photo-empty-hint">갤러리에서 추억 사진을 추가해보세요 📸</p>
         )}
+      </div>
+
+      {/* 추억 메모 — 자유롭게 기억 남기기 */}
+      <div className="pp-card">
+        <p className="pp-card-title">추억 메모</p>
+        <p className="memo-sub">좋아했던 것, 함께한 기억을 자유롭게 적어보세요</p>
+        <textarea
+          className="memo-textarea"
+          placeholder={"예) 산책을 너무 좋아했어. 공 가져오는 걸 잘했고, 아침마다 발을 핥아줬어..."}
+          value={memo}
+          onChange={handleMemoChange}
+          rows={6}
+        />
       </div>
 
       <div style={{height: 24}} />
