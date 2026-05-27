@@ -1,0 +1,188 @@
+﻿/* ── ECG Heartbeat ── */
+.ecg-wrap {
+  margin: 0 0 14px;
+  padding: 16px 8px 8px;
+  background: var(--surface);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+}
+
+.ecg-svg {
+  width: 100%;
+  overflow: visible;
+}
+
+.ecg-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: ecgPulse 1.4s ease-in-out infinite;
+}
+
+.ecg-line-right {
+  animation-delay: 0.05s;
+}
+
+.ecg-paw {
+  font-size: 28px;
+  animation: pawBeat 1.4s ease-in-out infinite;
+  transform-origin: 170px 36px;
+  filter: drop-shadow(0 0 0px rgba(192,120,69,0));
+}
+
+@keyframes ecgPulse {
+  0%, 100% { opacity: 0.45; }
+  28%       { opacity: 1; filter: drop-shadow(0 0 5px rgba(192,120,69,0.6)); }
+  55%       { opacity: 0.65; }
+}
+
+@keyframes pawBeat {
+  0%, 100% { transform: scale(0.88); filter: drop-shadow(0 0 0px rgba(192,120,69,0)); }
+  28%      { transform: scale(1.18); filter: drop-shadow(0 0 12px rgba(192,120,69,0.7)); }
+  42%      { transform: scale(0.96); }
+  58%      { transform: scale(1.08); filter: drop-shadow(0 0 6px rgba(192,120,69,0.4)); }
+  75%      { transform: scale(0.90); }
+}
+
+/* ── Status summary ── */
+.status-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sch {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: var(--surface2);
+  color: var(--text3);
+  border: 1px solid var(--border);
+  transition: all 0.25s;
+}
+.sch.on {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.status-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sa-btn {
+  padding: 11px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  transition: all 0.18s;
+}
+.sa-btn:active { transform: scale(0.97); }
+.sa-btn.off { background: var(--surface2); color: var(--text2); border: 1.5px solid var(--border); }
+.sa-btn.on  { background: var(--accent); color: #fff; }
+
+/* ── Control card ── */
+.oc-card { padding: 18px; }
+
+.oc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.oc-title-row { display: flex; gap: 12px; align-items: flex-start; }
+.oc-icon  { font-size: 22px; padding-top: 2px; }
+.oc-title { font-size: 15px; color: var(--text1); }
+.oc-sub   { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+.oc-body { display: flex; flex-direction: column; gap: 12px; transition: opacity 0.2s; }
+.oc-body.dim { opacity: 0.3; pointer-events: none; }
+
+/* ── BPM display ── */
+.bpm-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.bpm-num {
+  font-size: 56px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.bpm-unit {
+  font-size: 18px;
+  color: var(--accent2);
+}
+
+.bpm-range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text3);
+}
+
+/* ── Temperature ── */
+.temp-big {
+  text-align: center;
+  font-size: 52px;
+  color: #C060A0;
+  line-height: 1;
+  padding: 4px 0;
+}
+.temp-unit { font-size: 22px; }
+
+.temp-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.t-pre {
+  padding: 9px 4px;
+  border-radius: var(--r-xs);
+  font-size: 13px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+  transition: all 0.18s;
+}
+.t-pre:hover:not(:disabled) { border-color: #C060A0; color: #C060A0; }
+.t-pre.active { background: #C060A0; border-color: #C060A0; color: #fff; }
+
+.heat-note {
+  font-size: 11px;
+  color: var(--text3);
+  text-align: center;
+  padding: 8px;
+  background: var(--surface2);
+  border-radius: var(--r-xs);
+}
+
+/* ── Slider ── */
+.slider-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Arduino note ── */
+.arduino-note {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text3);
+  padding: 14px;
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+}

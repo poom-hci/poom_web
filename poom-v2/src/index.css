@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
+@font-face {
+  font-family: 'GumiRomance';
+  src: url('./fonts/GumiRomance.ttf') format('truetype');
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #FBF6EF;
+  --surface:   #FFFFFF;
+  --surface2:  #FBF2EA;
+  --border:    #EDE4D8;
+  --text1:     #2C1A0E;
+  --text2:     #8B6F5E;
+  --text3:     #B5A49A;
+  --accent:    #E8704A;
+  --accent2:   #F4A76A;
+  --accent-bg: #FDF0EB;
+  --green:     #4CAF7D;
+  --green-bg:  #EBF7F1;
+  --blue:      #6B9FD4;
+  --blue-bg:   #EBF3FB;
+  --purple:    #9B7FCB;
+  --purple-bg: #F1ECFA;
+  --shadow:    0 2px 12px rgba(100,50,20,0.07);
+  --shadow-md: 0 4px 24px rgba(100,50,20,0.10);
+  --shadow-lg: 0 8px 40px rgba(100,50,20,0.14);
+  --r:    16px;
+  --r-sm: 12px;
+  --r-xs: 8px;
+}
+
+body {
+  font-family: 'GumiRomance', 'Noto Sans KR', -apple-system, sans-serif;
+  background: #E8DDD0;
+  color: var(--text1);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea, select { font-family: inherit; }
+button { cursor: pointer; border: none; outline: none; }
+input, textarea, select { outline: none; }
+h1,h2,h3 { font-family: 'GumiRomance', serif; }
+::-webkit-scrollbar { width: 0; }
+
+/* ── Shared ── */
+.card {
+  background: var(--surface);
+  border-radius: var(--r);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  margin-bottom: 12px;
+}
+.card-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+}
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 11px 13px;
+  background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: var(--r-xs); font-size: 14px; color: var(--text1);
+  transition: border-color 0.18s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--accent); background: var(--surface);
+}
+.field textarea { resize: none; height: 76px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.btn-primary {
+  width: 100%; padding: 15px;
+  border-radius: var(--r-sm);
+  background: var(--accent); color: #fff;
+  font-size: 15px; font-weight: 600;
+  transition: all 0.18s;
+}
+.btn-primary:hover  { background: #D05A30; }
+.btn-primary:active { transform: scale(0.98); }
+
+.section-label {
+  font-size: 12px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+}

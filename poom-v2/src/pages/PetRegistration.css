@@ -1,0 +1,108 @@
+/* PetRegistration.css - POOM v2 */
+
+.photo-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.photo-area {
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  background: var(--surface2);
+  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.18s;
+}
+.photo-area:hover { border-color: var(--accent); }
+.photo-img { width: 100%; height: 100%; object-fit: cover; }
+.photo-ph  { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.photo-ph-icon { font-size: 24px; }
+.photo-ph-text { font-size: 11px; color: var(--text3); }
+.photo-badge {
+  position: absolute;
+  bottom: 4px; right: 4px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.photo-remove { font-size: 12px; color: var(--text3); background: none; cursor: pointer; }
+.photo-remove:hover { color: var(--red); }
+
+.breed-hint { font-size: 12px; color: var(--text3); margin-bottom: 12px; margin-top: -4px; }
+.breed-select-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.breed-select-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 4px;
+  border-radius: var(--r-xs);
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: all 0.18s;
+  text-align: center;
+}
+.breed-select-item:hover  { border-color: var(--accent); background: var(--accent-bg); }
+.breed-select-item.active { border-color: var(--accent); background: var(--accent-bg); }
+.breed-select-item:active { transform: scale(0.95); }
+.bsi-emoji { font-size: 22px; }
+.bsi-name  { font-size: 10px; font-weight: 600; color: var(--text2); line-height: 1.3; }
+.breed-select-item.active .bsi-name { color: var(--accent); }
+
+/* ── 성별 버튼 ── */
+.gender-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.gender-btn {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: var(--r-xs);
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.gender-btn:hover  { border-color: var(--accent); background: var(--accent-bg); }
+.gender-btn.active { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
+.gender-btn:active { transform: scale(0.97); }
+
+/* ── 액션 버튼 행 ── */
+.reg-actions {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 24px;
+}
+.btn-secondary {
+  padding: 15px 20px;
+  border-radius: var(--r);
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  color: var(--text2);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-secondary:hover  { border-color: var(--accent); color: var(--accent); }
+.btn-secondary:active { transform: scale(0.98); }

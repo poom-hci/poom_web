@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="420" viewBox="0 0 390 420">
+  <rect width="390" height="420" fill="#1A1030"/>
+  <text x="195" y="200" font-family="sans-serif" font-size="20" fill="rgba(255,255,255,0.4)" text-anchor="middle">이미지를 배치해 주세요</text>
+  <text x="195" y="230" font-family="sans-serif" font-size="14" fill="rgba(255,255,255,0.25)" text-anchor="middle">public/rooms/ 폴더에 이미지 저장</text>
+</svg>
