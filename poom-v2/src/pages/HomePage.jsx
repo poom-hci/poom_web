@@ -220,7 +220,7 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   const [showTalk,      setShowTalk]      = useState(false);
   const [showSheet,     setShowSheet]     = useState(false);
   const [bpm,           setBpm]           = useState(72);
-  const [temp,          setTemp]          = useState(36);
+  const [temp,          setTemp]          = useState(38.5);
   const [emotion,       setEmotion]       = useState(null);
   const [recentEntries, setRecentEntries] = useState([]);
 
@@ -296,7 +296,7 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
           <div className="stat-card">
             <p className="stat-label">온열 온도</p>
             <div className="stat-val-row">
-              <span className="stat-big">{temp}</span>
+              <span className="stat-big">{temp.toFixed(1)}</span>
               <span className="stat-unit">°C</span>
             </div>
             <p className="stat-active">🔥 활성</p>
@@ -326,11 +326,11 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
             <p className="hw-val">{temp}°C</p>
             <div className="hw-btn-row">
               <button className="hw-btn hw-btn-down"
-                onClick={() => { setTemp(t => Math.max(30, t - 10)); postControl('temp_down'); }}>
+                onClick={() => { setTemp(t => Math.round((t - 10) * 10) / 10); postControl('temp_down'); }}>
                 −10°C
               </button>
               <button className="hw-btn hw-btn-up"
-                onClick={() => { setTemp(t => Math.min(42, t + 10)); postControl('temp_up'); }}>
+                onClick={() => { setTemp(t => Math.round((t + 10) * 10) / 10); postControl('temp_up'); }}>
                 +10°C
               </button>
             </div>
