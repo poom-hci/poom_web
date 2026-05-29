@@ -12,6 +12,33 @@ from tokenizers import Tokenizer
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from faster_whisper import WhisperModel
+import serial
+import time
+
+# 아두이노 블루투스 포트 전역 초기화
+try:
+    # 현재 확인된 무선 포트 COM6 지정, 타임아웃 1초
+    arduino = serial.Serial(port='COM6', baudrate=9600, timeout=1)
+    time.sleep(2)  # 포트 개방 후 아두이노 안정화를 위한 대기
+    print("=== 아두이노 블루투스(COM6) 하드웨어 연동 성공 ===")
+except Exception as e:
+    print(f"=== 아두이노 블루투스 연결 실패: {e} ===")
+    arduino = None
+
+# 하드웨어의 현재 가동 상태를 기록할 전역 변수
+hw_status = {
+    "vibration": "off",
+    "heat": "off",
+    "current_emotion": "Neutral"
+}
+
+EMOTION_SIGNAL_MAP = {
+    "Neutral":   b'N',  # 평온
+    "Anxiety":   b'A',  # 불안
+    "Sadness":   b'S',  # 슬픔
+    "Anger":     b'R',  # 분노
+    "Happiness": b'H'   # 행복
+}
 
 app = Flask(__name__)
 CORS(app)
@@ -121,10 +148,31 @@ def run_emotion(mel_2d, text):
 # ── 엔드포인트 ─────────────────────────────────────────────────────
 
 @app.route('/control', methods=['POST'])
-def control():
-    data = request.json
-    print(f"[POOM] 제어: {data.get('action')} = {data.get('value')}")
-    return jsonify({'status':'ok','action':data.get('action'),'value':data.get('value')})
+def control_hardware():
+    data = request.get_json()
+    action = data.get("action")  # 예: "emotion_test" 또는 "vibration"
+    value = data.get("value")    # 예: "Anxiety", "Sadness" 또는 "off"
+
+    print(f"하드웨어 제어 요청 수신 - Action: {action}, Value: {value}")
+
+    if not arduino or not arduino.is_open:
+        return jsonify({"status": "error", "message": "아두이노 보드가 연결되어 있지 않습니다."}), 500
+
+    if value == "off" or action == "off":
+        arduino.write(b'0')  # 전체 정지 신호
+        hw_status["vibration"] = "off"
+        hw_status["heat"] = "off"
+        hw_status["current_emotion"] = "Neutral"
+    else:
+        # 가해진 value 값이 감정 맵에 존재하는지 확인
+        if value in EMOTION_SIGNAL_MAP:
+            signal = EMOTION_SIGNAL_MAP[value]
+            arduino.write(signal)  # 해당 감정 고유 문자 전송 (N, A, S, R, H)
+            hw_status["vibration"] = "on"
+            hw_status["heat"] = "on"
+            hw_status["current_emotion"] = value
+
+    return jsonify({"status": "success", "current_status": hw_status}), 200
 
 # ── STT + 감정 분석 ────────────────────────────────────────────────
 @app.route('/stt', methods=['POST'])
@@ -141,6 +189,18 @@ def stt():
             mel = audio_to_mel(tmp_path)
             label_en, label_kr, conf = run_emotion(mel, text)
             print(f"[감정] {label_kr} ({conf:.2%})")
+
+            # [AI 하드웨어 다이나믹 연동 연산부 추가]
+            if arduino and arduino.is_open:
+                if label_en in EMOTION_SIGNAL_MAP:
+                    signal = EMOTION_SIGNAL_MAP[label_en]
+                    arduino.write(signal)  # 예측된 감정 신호(N, A, S, R, H) 자동 전송
+                    
+                    hw_status["vibration"] = "on" if label_en != "Neutral" else "off"
+                    hw_status["heat"] = "on"
+                    hw_status["current_emotion"] = label_en
+                    print(f"=> [AI 자동제어] 음성 감정 {label_en} 감지 -> 아두이노 신호 {signal} 전송 완료")
+
         except Exception as e:
             print(f"[감정 오류] {e}"); label_en,label_kr,conf = "Neutral","평온",0.0
     finally:
@@ -154,6 +214,18 @@ def analyze_text():
     try:
         label_en, label_kr, conf = run_emotion(zeros_mel(), text)
         print(f"[텍스트 감정] {label_kr} ({conf:.2%})")
+
+        # [AI 하드웨어 다이나믹 연동 연산부 추가]
+        if arduino and arduino.is_open:
+            if label_en in EMOTION_SIGNAL_MAP:
+                signal = EMOTION_SIGNAL_MAP[label_en]
+                arduino.write(signal)  # 예측된 감정 신호(N, A, S, R, H) 자동 전송
+                
+                hw_status["vibration"] = "on" if label_en != "Neutral" else "off"
+                hw_status["heat"] = "on"
+                hw_status["current_emotion"] = label_en
+                print(f"=> [AI 자동제어] 텍스트 감정 {label_en} 감지 -> 아두이노 신호 {signal} 전송 완료")
+
     except Exception as e:
         print(f"[감정 오류] {e}"); label_en,label_kr,conf = "Neutral","평온",0.0
     return jsonify({'text':text,'emotion':label_en,'emotion_kr':label_kr,'confidence':round(conf,3)})
@@ -198,7 +270,9 @@ def get_diary_dates():
 
 @app.route('/status', methods=['GET'])
 def status():
-    return jsonify({'vibration':'off','heat':'off'})
+    # 고정된 값이 아니라, 현재 AI 로직이나 웹 제어로 바뀐 실시간 상태를 반환합니다.
+    return jsonify(hw_status), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # debug=True 시 블루투스 포트가 중복 개방되어 에러가 날 수 있으므로 False로 설정합니다.
+    app.run(host='0.0.0.0', debug=False, port=5000)

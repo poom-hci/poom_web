@@ -34,5 +34,13 @@ Thumbs.db
 # poom-dashboard (구버전 제외)
 poom-dashboard/
 
+# Models
+*.onnx
+*.bin
+*.pt
+*.pth
+*.h5
+poom-backend/models/
+
 *.log
 *.bak
