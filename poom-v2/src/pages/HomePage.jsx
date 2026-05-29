@@ -210,7 +210,6 @@ function RoomSheet({ theme, selectedBreed, onBreedSelect, onThemeChange, onClose
             </button>
           ))}
         </div>
-        <button className="breed-none-btn" onClick={() => onBreedSelect(null)}>빈 방으로 보기</button>
       </div>
     </div>
   );
@@ -232,9 +231,8 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   }, []);
 
   const getRoomSrc = () => {
-    if (theme === 'day') return '/rooms/day_empty.png';
-    if (selectedBreed)   return `/rooms/night_${selectedBreed}.png`;
-    return '/rooms/night_empty.png';
+    if (selectedBreed) return `/rooms/${theme}_${selectedBreed}.png`;
+    return `/rooms/${theme}_empty.png`;
   };
 
   const petName   = petInfo?.name || '우리 아이';
