@@ -72,19 +72,19 @@
 .dog-section:active { transform: scale(0.97); }
 .dog-hint { font-size: 13px; color: var(--text3); margin-top: 4px; letter-spacing: 0.2px; }
 
-/* ── 스탯 3칸 ── */
+/* ── 스탯 2칸 ── */
 .stats-row {
-  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
   margin-bottom: 12px;
 }
 .stat-card {
   background: var(--surface); border-radius: var(--r-sm);
-  padding: 12px 10px; box-shadow: var(--shadow);
+  padding: 16px 14px; box-shadow: var(--shadow);
 }
-.stat-label { font-size: 10px; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
-.stat-val-row { display: flex; align-items: baseline; gap: 3px; }
-.stat-big  { font-size: 22px; font-weight: 700; color: var(--text1); }
-.stat-unit { font-size: 12px; color: var(--text3); }
+.stat-label { font-size: 11px; color: var(--text3); font-weight: 600; margin-bottom: 6px; }
+.stat-val-row { display: flex; align-items: baseline; gap: 4px; }
+.stat-big  { font-size: 28px; font-weight: 700; color: var(--text1); }
+.stat-unit { font-size: 13px; color: var(--text3); }
 .bpm-bars  { display: flex; align-items: flex-end; gap: 2px; height: 22px; margin-top: 6px; }
 .bpm-bar   { flex: 1; background: var(--accent); border-radius: 2px; opacity: 0.75; }
 .stat-active { font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 6px; }
@@ -109,7 +109,7 @@
 }
 .hw-btn:active { opacity: 0.7; }
 .hw-btn-down { background: var(--surface2); color: var(--text1); }
-.hw-btn-up   { background: var(--accent);   color: #fff; }
+.hw-btn-up   { background: var(--surface2); color: var(--text1); }
 .hw-btn-off  {
   width: 100%; padding: 9px; background: #ff6b6b; color: #fff;
   border: none; border-radius: var(--r-xs);
