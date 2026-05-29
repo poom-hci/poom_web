@@ -301,22 +301,6 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
             </div>
             <p className="stat-active">🔥 활성</p>
           </div>
-          <div className="stat-card">
-            <p className="stat-label">감정 상태</p>
-            {emoStyle ? (
-              <>
-                <p className="stat-emotion" style={{color: emoStyle.color}}>{emoStyle.kr}</p>
-                <div className="emotion-bar-bg">
-                  <div className="emotion-bar-fill" style={{width:'65%', background: emoStyle.color}} />
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="stat-emotion">-</p>
-                <p className="stat-emotion-hint">말 걸기 후 분석</p>
-              </>
-            )}
-          </div>
         </div>
 
         {/* 하드웨어 제어 */}
