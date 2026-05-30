@@ -12,6 +12,33 @@ from tokenizers import Tokenizer
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from faster_whisper import WhisperModel
+import serial
+import time
+
+# 아두이노 블루투스 포트 전역 초기화
+try:
+    # 현재 확인된 무선 포트 COM6 지정, 타임아웃 1초
+    arduino = serial.Serial(port='COM6', baudrate=9600, timeout=1)
+    time.sleep(2)  # 포트 개방 후 아두이노 안정화를 위한 대기
+    print("=== 아두이노 블루투스(COM6) 하드웨어 연동 성공 ===")
+except Exception as e:
+    print(f"=== 아두이노 블루투스 연결 실패: {e} ===")
+    arduino = None
+
+# 하드웨어의 현재 가동 상태를 기록할 전역 변수
+hw_status = {
+    "vibration": "off",
+    "heat": "off",
+    "current_emotion": "Neutral"
+}
+
+EMOTION_SIGNAL_MAP = {
+    "Neutral":   b'N',  # 평온
+    "Anxiety":   b'A',  # 불안
+    "Sadness":   b'S',  # 슬픔
+    "Anger":     b'R',  # 분노
+    "Happiness": b'H'   # 행복
+}
 
 app = Flask(__name__)
 CORS(app)
@@ -62,7 +89,9 @@ with open(os.path.join(MODEL_DIR, "meta.json"), encoding="utf-8") as f:
 LABELS       = meta["labels"]
 AUDIO_PARAMS = meta["audio_params"]
 MAX_LEN      = meta["max_length"]
+AUDIO_INPUT  = meta.get("audio_input", "mel")   # "mel" 또는 "waveform"
 LABEL_KR     = {"Sadness":"슬픔","Anger":"분노","Anxiety":"불안","Neutral":"평온","Happiness":"행복"}
+print(f"[모델] 오디오 입력 방식: {AUDIO_INPUT}")
 
 print("Whisper 모델 로딩 중...")
 whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
@@ -82,49 +111,86 @@ print(f"감정 모델 준비 완료 — {LABELS}")
 def softmax(x):
     e = np.exp(x - np.max(x)); return e / e.sum()
 
-def audio_to_mel(path):
-    from faster_whisper.audio import decode_audio   # webm/opus 지원 (built-in ffmpeg)
+def load_audio(path):
+    """webm/wav 모두 지원 — faster_whisper 내장 ffmpeg 사용"""
+    from faster_whisper.audio import decode_audio
     sr     = AUDIO_PARAMS["sr"]
     target = int(sr * AUDIO_PARAMS["target_duration"])
-    y      = decode_audio(path, sampling_rate=sr)   # librosa.load 대체
-    y      = np.pad(y,(0,max(0,target-len(y))))[:target]
-    mel    = librosa.feature.melspectrogram(y=y,sr=sr,n_mels=AUDIO_PARAMS["n_mels"],
-               n_fft=AUDIO_PARAMS["n_fft"],hop_length=AUDIO_PARAMS["hop_length"],
-               fmin=AUDIO_PARAMS["fmin"],fmax=AUDIO_PARAMS["fmax"])
-    mel_db = librosa.power_to_db(mel, ref=np.max)
-    return ((mel_db - mel_db.mean()) / (mel_db.std()+1e-8)).astype(np.float32)
+    y      = decode_audio(path, sampling_rate=sr)
+    return np.pad(y, (0, max(0, target - len(y))))[:target].astype(np.float32)
 
-def zeros_mel():
+def audio_to_mel(path):
+    y      = load_audio(path)
+    sr     = AUDIO_PARAMS["sr"]
+    mel    = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=AUDIO_PARAMS["n_mels"],
+               n_fft=AUDIO_PARAMS["n_fft"], hop_length=AUDIO_PARAMS["hop_length"],
+               fmin=AUDIO_PARAMS["fmin"], fmax=AUDIO_PARAMS["fmax"])
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+    return ((mel_db - mel_db.mean()) / (mel_db.std() + 1e-8)).astype(np.float32)
+
+def silent_audio():
+    """텍스트 전용 시 사용하는 무음 오디오"""
     sr     = AUDIO_PARAMS["sr"]
     target = int(sr * AUDIO_PARAMS["target_duration"])
-    mel    = librosa.feature.melspectrogram(y=np.zeros(target,np.float32),sr=sr,
-               n_mels=AUDIO_PARAMS["n_mels"],n_fft=AUDIO_PARAMS["n_fft"],
-               hop_length=AUDIO_PARAMS["hop_length"],fmin=AUDIO_PARAMS["fmin"],
-               fmax=AUDIO_PARAMS["fmax"])
+    return np.zeros(target, np.float32)
+
+def silent_mel():
+    y   = silent_audio()
+    sr  = AUDIO_PARAMS["sr"]
+    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=AUDIO_PARAMS["n_mels"],
+            n_fft=AUDIO_PARAMS["n_fft"], hop_length=AUDIO_PARAMS["hop_length"],
+            fmin=AUDIO_PARAMS["fmin"], fmax=AUDIO_PARAMS["fmax"])
     return librosa.power_to_db(mel, ref=np.max).astype(np.float32)
 
 def tokenize(text):
     enc  = tok.encode(text or ".")
-    return (np.array([enc.ids],dtype=np.int64),
-            np.array([enc.attention_mask],dtype=np.int64))
+    return (np.array([enc.ids], dtype=np.int64),
+            np.array([enc.attention_mask], dtype=np.int64))
 
-def run_emotion(mel_2d, text):
-    mel_in     = mel_2d[np.newaxis,np.newaxis,:,:]
-    ids, mask  = tokenize(text)
-    logits     = emo_session.run(["logits"],
-                   {"mel":mel_in,"input_ids":ids,"attention_mask":mask})[0][0]
-    probs      = softmax(logits)
-    idx        = int(np.argmax(probs))
-    label_en   = LABELS[idx]
+def run_emotion(audio_data, text):
+    """audio_data: mel 2D array (mel 방식) 또는 waveform 1D array (waveform 방식)"""
+    ids, mask = tokenize(text)
+    if AUDIO_INPUT == "waveform":
+        wav_in = audio_data[np.newaxis, :]          # (1, T)
+        logits = emo_session.run(["logits"],
+                   {"waveform": wav_in, "input_ids": ids, "attention_mask": mask})[0][0]
+    else:
+        mel_in = audio_data[np.newaxis, np.newaxis, :, :]  # (1, 1, 128, T)
+        logits = emo_session.run(["logits"],
+                   {"mel": mel_in, "input_ids": ids, "attention_mask": mask})[0][0]
+    probs    = softmax(logits)
+    idx      = int(np.argmax(probs))
+    label_en = LABELS[idx]
     return label_en, LABEL_KR.get(label_en, label_en), float(probs[idx])
 
 # ── 엔드포인트 ─────────────────────────────────────────────────────
 
 @app.route('/control', methods=['POST'])
-def control():
-    data = request.json
-    print(f"[POOM] 제어: {data.get('action')} = {data.get('value')}")
-    return jsonify({'status':'ok','action':data.get('action'),'value':data.get('value')})
+def control_hardware():
+    data = request.get_json()
+    action = data.get("action")  # 예: "emotion_test" 또는 "vibration"
+    value = data.get("value")    # 예: "Anxiety", "Sadness" 또는 "off"
+
+    print(f"하드웨어 제어 요청 수신 - Action: {action}, Value: {value}")
+
+    if not arduino or not arduino.is_open:
+        return jsonify({"status": "error", "message": "아두이노 보드가 연결되어 있지 않습니다."}), 500
+
+    if value == "off" or action == "off":
+        arduino.write(b'0')  # 전체 정지 신호
+        hw_status["vibration"] = "off"
+        hw_status["heat"] = "off"
+        hw_status["current_emotion"] = "Neutral"
+    else:
+        # 가해진 value 값이 감정 맵에 존재하는지 확인
+        if value in EMOTION_SIGNAL_MAP:
+            signal = EMOTION_SIGNAL_MAP[value]
+            arduino.write(signal)  # 해당 감정 고유 문자 전송 (N, A, S, R, H)
+            hw_status["vibration"] = "on"
+            hw_status["heat"] = "on"
+            hw_status["current_emotion"] = value
+
+    return jsonify({"status": "success", "current_status": hw_status}), 200
 
 # ── STT + 감정 분석 ────────────────────────────────────────────────
 @app.route('/stt', methods=['POST'])
@@ -138,9 +204,21 @@ def stt():
         text = ' '.join(s.text for s in segments).strip()
         print(f"[STT] {text}")
         try:
-            mel = audio_to_mel(tmp_path)
-            label_en, label_kr, conf = run_emotion(mel, text)
+            audio = load_audio(tmp_path) if AUDIO_INPUT == "waveform" else audio_to_mel(tmp_path)
+            label_en, label_kr, conf = run_emotion(audio, text)
             print(f"[감정] {label_kr} ({conf:.2%})")
+
+            # [AI 하드웨어 다이나믹 연동 연산부 추가]
+            if arduino and arduino.is_open:
+                if label_en in EMOTION_SIGNAL_MAP:
+                    signal = EMOTION_SIGNAL_MAP[label_en]
+                    arduino.write(signal)  # 예측된 감정 신호(N, A, S, R, H) 자동 전송
+                    
+                    hw_status["vibration"] = "on" if label_en != "Neutral" else "off"
+                    hw_status["heat"] = "on"
+                    hw_status["current_emotion"] = label_en
+                    print(f"=> [AI 자동제어] 음성 감정 {label_en} 감지 -> 아두이노 신호 {signal} 전송 완료")
+
         except Exception as e:
             print(f"[감정 오류] {e}"); label_en,label_kr,conf = "Neutral","평온",0.0
     finally:
@@ -152,8 +230,21 @@ def analyze_text():
     text = (request.json or {}).get('text','').strip()
     if not text: return jsonify({'error':'텍스트 없음'}), 400
     try:
-        label_en, label_kr, conf = run_emotion(zeros_mel(), text)
+        silent = silent_audio() if AUDIO_INPUT == "waveform" else silent_mel()
+        label_en, label_kr, conf = run_emotion(silent, text)
         print(f"[텍스트 감정] {label_kr} ({conf:.2%})")
+
+        # [AI 하드웨어 다이나믹 연동 연산부 추가]
+        if arduino and arduino.is_open:
+            if label_en in EMOTION_SIGNAL_MAP:
+                signal = EMOTION_SIGNAL_MAP[label_en]
+                arduino.write(signal)  # 예측된 감정 신호(N, A, S, R, H) 자동 전송
+                
+                hw_status["vibration"] = "on" if label_en != "Neutral" else "off"
+                hw_status["heat"] = "on"
+                hw_status["current_emotion"] = label_en
+                print(f"=> [AI 자동제어] 텍스트 감정 {label_en} 감지 -> 아두이노 신호 {signal} 전송 완료")
+
     except Exception as e:
         print(f"[감정 오류] {e}"); label_en,label_kr,conf = "Neutral","평온",0.0
     return jsonify({'text':text,'emotion':label_en,'emotion_kr':label_kr,'confidence':round(conf,3)})
@@ -198,7 +289,9 @@ def get_diary_dates():
 
 @app.route('/status', methods=['GET'])
 def status():
-    return jsonify({'vibration':'off','heat':'off'})
+    # 고정된 값이 아니라, 현재 AI 로직이나 웹 제어로 바뀐 실시간 상태를 반환합니다.
+    return jsonify(hw_status), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # debug=True 시 블루투스 포트가 중복 개방되어 에러가 날 수 있으므로 False로 설정합니다.
+    app.run(host='0.0.0.0', debug=False, port=5000)
