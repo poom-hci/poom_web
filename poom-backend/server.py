@@ -176,19 +176,25 @@ def control_hardware():
     if not arduino or not arduino.is_open:
         return jsonify({"status": "error", "message": "아두이노 보드가 연결되어 있지 않습니다."}), 500
 
-    if value == "off" or action == "off":
-        arduino.write(b'0')  # 전체 정지 신호
+    if action == "off" or value == "off":
+        arduino.write(b'0')
         hw_status["vibration"] = "off"
         hw_status["heat"] = "off"
         hw_status["current_emotion"] = "Neutral"
-    else:
-        # 가해진 value 값이 감정 맵에 존재하는지 확인
-        if value in EMOTION_SIGNAL_MAP:
-            signal = EMOTION_SIGNAL_MAP[value]
-            arduino.write(signal)  # 해당 감정 고유 문자 전송 (N, A, S, R, H)
-            hw_status["vibration"] = "on"
-            hw_status["heat"] = "on"
-            hw_status["current_emotion"] = value
+        print("[제어] 전체 정지")
+    elif action == "temp_up":
+        arduino.write(b'+')
+        print("[제어] 온도 UP → 아두이노 '+' 전송")
+    elif action == "temp_down":
+        arduino.write(b'-')
+        print("[제어] 온도 DOWN → 아두이노 '-' 전송")
+    elif value in EMOTION_SIGNAL_MAP:
+        signal = EMOTION_SIGNAL_MAP[value]
+        arduino.write(signal)
+        hw_status["vibration"] = "on"
+        hw_status["heat"] = "on"
+        hw_status["current_emotion"] = value
+        print(f"[제어] 감정 신호 '{signal}' 전송")
 
     return jsonify({"status": "success", "current_status": hw_status}), 200
 
