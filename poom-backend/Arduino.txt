@@ -1,77 +1,128 @@
-'''
 #include <SoftwareSerial.h>
 
-// 블루투스 핀 설정 (RX: D2, TX: D3)
-// ⚠️ HC-06의 TXD -> 아두이노 D2 / HC-06의 RXD -> 아두이노 D3
+// 블루투스 설정
 SoftwareSerial BTSerial(2, 3); 
 
-const int MOTOR_1 = 4;     // 디지털 모터 핀
-const int MOTOR_2 = 5;     // PWM 모터 핀 (진동 세기 변경용)
-const int HEATER_PIN = 6;  // PWM 온열 패드 핀
+const int MOTOR_1 = 4;     // 디지털 핀 (주 모터)
+const int MOTOR_2 = 5;     // PWM 핀 (보조 모터)
+const int HEATER_PIN = 6;  // PWM 온열
 
-// 가동 제어를 위한 전역 변수
-char current_emotion = 'N'; 
+struct HapticParams { float bpm; int pwm; int heat; };
+const HapticParams SADNESS   = {60.0, 240, 250}; // 강도 상향
+const HapticParams ANGER     = {75.0, 190, 180}; 
+const HapticParams ANXIETY   = {85.0, 160, 200}; 
+const HapticParams NEUTRAL   = {68.0, 110, 130}; 
+const HapticParams HAPPINESS = {65.0, 110, 160}; 
+
+char current_emotion = '0';
+unsigned long last_beat_millis = 0;
+int beat_phase = 0; 
+float live_bpm = 68.0;
+int live_pwm = 110;
+int live_heat = 0;
 
 void setup() {
   pinMode(MOTOR_1, OUTPUT);
   pinMode(MOTOR_2, OUTPUT);
   pinMode(HEATER_PIN, OUTPUT);
-  
   Serial.begin(9600);   
   BTSerial.begin(9600); 
-  Serial.println("=== 감정별 하드웨어 동작 테스트 시작 ===");
+  stopAll();
 }
 
 void loop() {
-  // 1. Flask 서버(블루투스)로부터 신호가 들어오면 현재 감정 상태를 갱신
   if (BTSerial.available()) {
-    current_emotion = BTSerial.read();
-    Serial.print("수신된 감정 신호: ");
-    Serial.println(current_emotion);                                                                                                                                                                                                                                                                                                                                        
-    
-    // 신호가 바뀔 때 오작동 방지를 위해 일단 모두 끄고 시작
-    digitalWrite(MOTOR_1, LOW);
-    analogWrite(MOTOR_2, 0);
-    analogWrite(HEATER_PIN, 0);
+    char cmd = BTSerial.read();
+    handleCommand(cmd);
   }
+  runHapticEngine();
+}
 
-  // 2. 현재 감정 상태에 따라 다르게 작동 (동작 확인용 단순 패턴)
-  if (current_emotion == '0' || current_emotion == 'N') {
-    // [평온 / 정지] -> 모두 끔
-    digitalWrite(MOTOR_1, LOW);
-    analogWrite(MOTOR_2, 0);
-    analogWrite(HEATER_PIN, 0);
-  } 
-  
-  else if (current_emotion == 'A') {
-    // [불안] -> 최고 온도, 미치도록 빠른 진동 (쿵쾅쿵쾅)
-    analogWrite(HEATER_PIN, 240); // 높은 온도
-    
-    digitalWrite(MOTOR_1, HIGH); analogWrite(MOTOR_2, 255); delay(100);
-    digitalWrite(MOTOR_1, LOW);  analogWrite(MOTOR_2, 0);   delay(100);
-  } 
-  
-  else if (current_emotion == 'S') {
-    // [슬픔] -> 미지근한 온도, 아주 느리고 긴 진동 (쿠웅-------쿠웅)
-    analogWrite(HEATER_PIN, 150); // 낮은 온도
-    
-    digitalWrite(MOTOR_1, HIGH); analogWrite(MOTOR_2, 130); delay(400);
-    digitalWrite(MOTOR_1, LOW);  analogWrite(MOTOR_2, 0);   delay(800);
-  } 
-  
-  else if (current_emotion == 'R') {
-    // [분노] -> 한계치 최대 온도, 우렁차고 강한 진동 (쾅! 쾅! 쾅!)
-    analogWrite(HEATER_PIN, 255); // 최대 온도
-    
-    digitalWrite(MOTOR_1, HIGH); analogWrite(MOTOR_2, 255); delay(200);
-    digitalWrite(MOTOR_1, LOW);  analogWrite(MOTOR_2, 0);   delay(300);
-  } 
-  
-  else if (current_emotion == 'H') {
-    // [행복] -> 적당히 따뜻한 온도, 일정한 리듬의 진동 (둥-탁 둥-탁)
-    analogWrite(HEATER_PIN, 180); // 중간 온도
-    
-    digitalWrite(MOTOR_1, HIGH); analogWrite(MOTOR_2, 180); delay(150);
-    digitalWrite(MOTOR_1, LOW);  analogWrite(MOTOR_2, 0);   delay(400);
+void handleCommand(char cmd) {
+  if (cmd == '0') { stopAll(); return; }
+  if (cmd == '+') { live_heat = min(live_heat + 25, 255); analogWrite(HEATER_PIN, live_heat); return; }
+  if (cmd == '-') { live_heat = max(live_heat - 25, 0);   analogWrite(HEATER_PIN, live_heat); return; }
+
+  current_emotion = cmd;
+  switch (cmd) {
+    case 'S': case 's': applyParams(SADNESS);   break;
+    case 'R': case 'r': applyParams(ANGER);     break;
+    case 'A': case 'a': applyParams(ANXIETY);   break;
+    case 'N': case 'n': applyParams(NEUTRAL);   break;
+    case 'H': case 'h': applyParams(HAPPINESS); break;
   }
-}'''
+}
+
+void applyParams(HapticParams p) {
+  live_bpm = p.bpm; live_pwm = p.pwm; live_heat = p.heat;
+  analogWrite(HEATER_PIN, live_heat);
+  beat_phase = 0;
+}
+
+void runHapticEngine() {
+  if (current_emotion == '0') return;
+  unsigned long now = millis();
+  unsigned long full_interval = (60.0 / live_bpm) * 1000;
+
+  switch (beat_phase) {
+    case 0: // 대기
+      if (now - last_beat_millis >= full_interval) {
+        if (current_emotion == 'N' && random(0, 4) != 0) { last_beat_millis = now; return; }
+        startLub(); // 1번+2번 동시 가동 (강한 쿵)
+        last_beat_millis = now;
+        beat_phase = 1;
+      }
+      break;
+    case 1: // Lub 지속 (90ms)
+      if (now - last_beat_millis >= 90) {
+        stopMotors();
+        last_beat_millis = now;
+        beat_phase = 2;
+      }
+      break;
+    case 2: // 휴지 (110ms)
+      if (now - last_beat_millis >= 110) {
+        startDub(); // 2번만 가동 (약한 쾅)
+        last_beat_millis = now;
+        beat_phase = 3;
+      }
+      break;
+    case 3: // Dub 지속 (70ms)
+      if (now - last_beat_millis >= 70) {
+        stopMotors();
+        last_beat_millis = now;
+        beat_phase = 0;
+      }
+      break;
+  }
+}
+
+void startLub() {
+  // 제1심음: 묵직한 타격감을 위해 두 모터를 모두 켭니다.
+  digitalWrite(MOTOR_1, HIGH);
+  analogWrite(MOTOR_2, live_pwm);
+}
+
+void startDub() {
+  // 제2심음: 여운을 남기기 위해 PWM 모터(2번)만 사용합니다.
+  digitalWrite(MOTOR_1, LOW);
+  analogWrite(MOTOR_2, live_pwm * 0.7); 
+}
+
+void stopMotors() {
+  digitalWrite(MOTOR_1, LOW);
+  analogWrite(MOTOR_2, 0);
+}
+
+void stopAll() {
+  current_emotion = '0';
+  stopMotors();
+  analogWrite(HEATER_PIN, 0);
+  beat_phase = 0;
+}
+
+
+
+
+
+

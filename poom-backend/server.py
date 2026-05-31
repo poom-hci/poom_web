@@ -25,20 +25,30 @@ except Exception as e:
     print(f"=== 아두이노 블루투스 연결 실패: {e} ===")
     arduino = None
 
-# 하드웨어의 현재 가동 상태를 기록할 전역 변수
+# 하드웨어의 현재 가동 상태를 기록할 전역 변수 (초기 상태: 정지)
 hw_status = {
     "vibration": "off",
     "heat": "off",
-    "current_emotion": "Neutral"
+    "current_emotion": "None"
 }
 
 EMOTION_SIGNAL_MAP = {
-    "Neutral":   b'N',  # 평온
-    "Anxiety":   b'A',  # 불안
-    "Sadness":   b'S',  # 슬픔
-    "Anger":     b'R',  # 분노
-    "Happiness": b'H'   # 행복
+    "Neutral":   b'N',
+    "Anxiety":   b'A',
+    "Sadness":   b'S',
+    "Anger":     b'R',
+    "Angry":     b'R',
+    "Happiness": b'H',
+    "Happy":     b'H'
 }
+
+# Case-insensitive mapping for safer lookup
+def get_emotion_signal(label):
+    if not label: return None
+    for key, signal in EMOTION_SIGNAL_MAP.items():
+        if key.lower() == label.lower():
+            return signal
+    return None
 
 app = Flask(__name__)
 CORS(app)
@@ -176,20 +186,22 @@ def control_hardware():
     if not arduino or not arduino.is_open:
         return jsonify({"status": "error", "message": "아두이노 보드가 연결되어 있지 않습니다."}), 500
 
+    signal = get_emotion_signal(value)
+    # action이 'off'이거나 value가 'off'인 경우 모두 정지 신호 전송
     if action == "off" or value == "off":
         arduino.write(b'0')
+        arduino.flush() # 즉시 전송 보장
         hw_status["vibration"] = "off"
         hw_status["heat"] = "off"
         hw_status["current_emotion"] = "Neutral"
-        print("[제어] 전체 정지")
+        print("[제어] 전체 정지 (0) 전송 완료")
     elif action == "temp_up":
         arduino.write(b'+')
         print("[제어] 온도 UP → 아두이노 '+' 전송")
     elif action == "temp_down":
         arduino.write(b'-')
         print("[제어] 온도 DOWN → 아두이노 '-' 전송")
-    elif value in EMOTION_SIGNAL_MAP:
-        signal = EMOTION_SIGNAL_MAP[value]
+    elif signal:
         arduino.write(signal)
         hw_status["vibration"] = "on"
         hw_status["heat"] = "on"
@@ -216,14 +228,20 @@ def stt():
 
             # [AI 하드웨어 다이나믹 연동 연산부 추가]
             if arduino and arduino.is_open:
-                if label_en in EMOTION_SIGNAL_MAP:
+                # 감정이 분석되었고(Neutral 이상), 신뢰도가 0.4 이상일 때만 작동
+                if label_en in EMOTION_SIGNAL_MAP and conf >= 0.4:
                     signal = EMOTION_SIGNAL_MAP[label_en]
-                    arduino.write(signal)  # 예측된 감정 신호(N, A, S, R, H) 자동 전송
+                    arduino.write(signal)
+                    arduino.flush()
                     
                     hw_status["vibration"] = "on" if label_en != "Neutral" else "off"
                     hw_status["heat"] = "on"
                     hw_status["current_emotion"] = label_en
-                    print(f"=> [AI 자동제어] 음성 감정 {label_en} 감지 -> 아두이노 신호 {signal} 전송 완료")
+                    print(f"=> [AI 자동제어] {label_kr} 감지(신뢰도 {conf:.2f}) -> 아두이노 전송")
+                else:
+                    arduino.write(b'0')
+                    arduino.flush()
+                    print(f"=> [AI 자동제어] 분석 결과가 불확실하여(신뢰도 {conf:.2f}) 하드웨어를 정지(0)합니다.")
 
         except Exception as e:
             print(f"[감정 오류] {e}"); label_en,label_kr,conf = "Neutral","평온",0.0
@@ -242,14 +260,20 @@ def analyze_text():
 
         # [AI 하드웨어 다이나믹 연동 연산부 추가]
         if arduino and arduino.is_open:
-            if label_en in EMOTION_SIGNAL_MAP:
+            # 감정이 분석되었고(Neutral 이상), 신뢰도가 0.4 이상일 때만 작동
+            if label_en in EMOTION_SIGNAL_MAP and conf >= 0.4:
                 signal = EMOTION_SIGNAL_MAP[label_en]
-                arduino.write(signal)  # 예측된 감정 신호(N, A, S, R, H) 자동 전송
+                arduino.write(signal)
+                arduino.flush()
                 
                 hw_status["vibration"] = "on" if label_en != "Neutral" else "off"
                 hw_status["heat"] = "on"
                 hw_status["current_emotion"] = label_en
-                print(f"=> [AI 자동제어] 텍스트 감정 {label_en} 감지 -> 아두이노 신호 {signal} 전송 완료")
+                print(f"=> [AI 자동제어] {label_kr} 감지(신뢰도 {conf:.2f}) -> 아두이노 전송")
+            else:
+                arduino.write(b'0')
+                arduino.flush()
+                print(f"=> [AI 자동제어] 분석 결과가 불확실하여(신뢰도 {conf:.2f}) 하드웨어를 정지(0)합니다.")
 
     except Exception as e:
         print(f"[감정 오류] {e}"); label_en,label_kr,conf = "Neutral","평온",0.0

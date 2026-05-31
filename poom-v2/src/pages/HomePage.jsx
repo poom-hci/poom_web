@@ -219,7 +219,7 @@ function RoomSheet({ theme, selectedBreed, onBreedSelect, onThemeChange, onClose
 export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed, onBreedChange, onGoRegister, onGoToDiary }) {
   const [showTalk,      setShowTalk]      = useState(false);
   const [showSheet,     setShowSheet]     = useState(false);
-  const [bpm,           setBpm]           = useState(72);
+  const [bpm]                             = useState(72);
   const [temp,          setTemp]          = useState(38.5);
   const [emotion,       setEmotion]       = useState(null);
   const [recentEntries, setRecentEntries] = useState([]);
@@ -236,7 +236,6 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   };
 
   const petName   = petInfo?.name || '우리 아이';
-  const emoStyle  = emotion ? (EMOTION_STYLE[emotion] || EMOTION_STYLE.Neutral) : null;
 
   const postControl = (action, value) => {
     fetch('http://localhost:5000/control', {
