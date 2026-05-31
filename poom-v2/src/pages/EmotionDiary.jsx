@@ -243,8 +243,8 @@ export default function EmotionDiary({ petName = '우리 아이', refreshKey = 0
     }
   };
 
-  useEffect(() => { loadAll(); }, [refreshKey]);
-  useEffect(() => { loadDay(selectedDay); }, [selectedDay, refreshKey]);
+  useEffect(() => { loadAll(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadDay(selectedDay); }, [selectedDay, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmtSelected = () => {
     const d = new Date(selectedDay + 'T00:00:00');

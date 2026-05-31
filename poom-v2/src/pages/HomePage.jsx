@@ -221,7 +221,6 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   const [showSheet,     setShowSheet]     = useState(false);
   const [bpm]                             = useState(72);
   const [temp,          setTemp]          = useState(38.5);
-  const [emotion,       setEmotion]       = useState(null);
   const [recentEntries, setRecentEntries] = useState([]);
 
   useEffect(() => {
@@ -361,7 +360,6 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
         <TalkModal
           petName={petName}
           onClose={() => setShowTalk(false)}
-          onEmotionResult={label => setEmotion(label)}
           onSaved={() =>
             getDiaryEntries()
               .then(all => setRecentEntries(all.slice(0, 3)))
