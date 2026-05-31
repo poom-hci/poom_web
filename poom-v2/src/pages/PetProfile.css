@@ -191,3 +191,18 @@
 }
 .memo-textarea:focus { outline: none; border-color: var(--accent); }
 .memo-textarea::placeholder { color: var(--text3); }
+.memo-save-btn {
+  width: 100%; margin-top: 10px; padding: 11px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: var(--r-xs);
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  opacity: 1; transition: opacity 0.15s;
+}
+.memo-save-btn:disabled { opacity: 0.4; cursor: default; }
+.memo-list { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.memo-item {
+  background: var(--surface2); border-radius: var(--r-xs);
+  padding: 12px 14px; border-left: 3px solid var(--accent);
+}
+.memo-item-text { font-size: 14px; color: var(--text1); line-height: 1.7; margin: 0 0 4px; white-space: pre-wrap; }
+.memo-item-date { font-size: 11px; color: var(--text3); margin: 0; }

@@ -210,7 +210,6 @@ function RoomSheet({ theme, selectedBreed, onBreedSelect, onThemeChange, onClose
             </button>
           ))}
         </div>
-        <button className="breed-none-btn" onClick={() => onBreedSelect(null)}>빈 방으로 보기</button>
       </div>
     </div>
   );
@@ -221,7 +220,7 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   const [showTalk,      setShowTalk]      = useState(false);
   const [showSheet,     setShowSheet]     = useState(false);
   const [bpm,           setBpm]           = useState(72);
-  const [temp,          setTemp]          = useState(36);
+  const [temp,          setTemp]          = useState(38.5);
   const [emotion,       setEmotion]       = useState(null);
   const [recentEntries, setRecentEntries] = useState([]);
 
@@ -232,9 +231,8 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   }, []);
 
   const getRoomSrc = () => {
-    if (theme === 'day') return '/rooms/day_empty.png';
-    if (selectedBreed)   return `/rooms/night_${selectedBreed}.png`;
-    return '/rooms/night_empty.png';
+    if (selectedBreed) return `/rooms/${theme}_${selectedBreed}.png`;
+    return `/rooms/${theme}_empty.png`;
   };
 
   const petName   = petInfo?.name || '우리 아이';
@@ -298,42 +296,36 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
           <div className="stat-card">
             <p className="stat-label">온열 온도</p>
             <div className="stat-val-row">
-              <span className="stat-big">{temp}</span>
+              <span className="stat-big">{temp.toFixed(1)}</span>
               <span className="stat-unit">°C</span>
             </div>
             <p className="stat-active">🔥 활성</p>
           </div>
-          <div className="stat-card">
-            <p className="stat-label">감정 상태</p>
-            {emoStyle ? (
-              <>
-                <p className="stat-emotion" style={{color: emoStyle.color}}>{emoStyle.kr}</p>
-                <div className="emotion-bar-bg">
-                  <div className="emotion-bar-fill" style={{width:'65%', background: emoStyle.color}} />
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="stat-emotion">-</p>
-                <p className="stat-emotion-hint">말 걸기 후 분석</p>
-              </>
-            )}
-          </div>
         </div>
 
-        {/* 온도 슬라이더 */}
-        <div className="temp-control">
-          <div className="temp-control-header">
-            <span className="temp-control-label">온도 조절</span>
-            <span className="temp-control-val">{temp}°C</span>
+        {/* 하드웨어 제어 */}
+        <div className="hw-control-row">
+          <div className="hw-card">
+            <p className="hw-label">온열 온도</p>
+            <p className="hw-val">{temp}°C</p>
+            <div className="hw-btn-row">
+              <button className="hw-btn hw-btn-down"
+                onClick={() => { setTemp(t => Math.round((t - 10) * 10) / 10); postControl('temp_down'); }}>
+                −10°C
+              </button>
+              <button className="hw-btn hw-btn-up"
+                onClick={() => { setTemp(t => Math.round((t + 10) * 10) / 10); postControl('temp_up'); }}>
+                +10°C
+              </button>
+            </div>
           </div>
-          <input type="range" className="temp-slider"
-            min={30} max={42} step={0.5} value={temp}
-            onChange={e => { setTemp(Number(e.target.value)); postControl('heat', Number(e.target.value)); }}
-            style={{'--pct': `${((temp-30)/12)*100}%`}}
-          />
-          <div className="temp-marks">
-            <span>30°C</span><span>체온</span><span>42°C</span>
+          <div className="hw-card">
+            <p className="hw-label">햅틱 진동</p>
+            <p className="hw-val">작동 중</p>
+            <button className="hw-btn hw-btn-off"
+              onClick={() => postControl('off')}>
+              멈춤
+            </button>
           </div>
         </div>
 

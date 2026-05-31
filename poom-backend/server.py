@@ -89,7 +89,9 @@ with open(os.path.join(MODEL_DIR, "meta.json"), encoding="utf-8") as f:
 LABELS       = meta["labels"]
 AUDIO_PARAMS = meta["audio_params"]
 MAX_LEN      = meta["max_length"]
+AUDIO_INPUT  = meta.get("audio_input", "mel")   # "mel" 또는 "waveform"
 LABEL_KR     = {"Sadness":"슬픔","Anger":"분노","Anxiety":"불안","Neutral":"평온","Happiness":"행복"}
+print(f"[모델] 오디오 입력 방식: {AUDIO_INPUT}")
 
 print("Whisper 모델 로딩 중...")
 whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
@@ -109,40 +111,56 @@ print(f"감정 모델 준비 완료 — {LABELS}")
 def softmax(x):
     e = np.exp(x - np.max(x)); return e / e.sum()
 
-def audio_to_mel(path):
-    from faster_whisper.audio import decode_audio   # webm/opus 지원 (built-in ffmpeg)
+def load_audio(path):
+    """webm/wav 모두 지원 — faster_whisper 내장 ffmpeg 사용"""
+    from faster_whisper.audio import decode_audio
     sr     = AUDIO_PARAMS["sr"]
     target = int(sr * AUDIO_PARAMS["target_duration"])
-    y      = decode_audio(path, sampling_rate=sr)   # librosa.load 대체
-    y      = np.pad(y,(0,max(0,target-len(y))))[:target]
-    mel    = librosa.feature.melspectrogram(y=y,sr=sr,n_mels=AUDIO_PARAMS["n_mels"],
-               n_fft=AUDIO_PARAMS["n_fft"],hop_length=AUDIO_PARAMS["hop_length"],
-               fmin=AUDIO_PARAMS["fmin"],fmax=AUDIO_PARAMS["fmax"])
-    mel_db = librosa.power_to_db(mel, ref=np.max)
-    return ((mel_db - mel_db.mean()) / (mel_db.std()+1e-8)).astype(np.float32)
+    y      = decode_audio(path, sampling_rate=sr)
+    return np.pad(y, (0, max(0, target - len(y))))[:target].astype(np.float32)
 
-def zeros_mel():
+def audio_to_mel(path):
+    y      = load_audio(path)
+    sr     = AUDIO_PARAMS["sr"]
+    mel    = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=AUDIO_PARAMS["n_mels"],
+               n_fft=AUDIO_PARAMS["n_fft"], hop_length=AUDIO_PARAMS["hop_length"],
+               fmin=AUDIO_PARAMS["fmin"], fmax=AUDIO_PARAMS["fmax"])
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+    return ((mel_db - mel_db.mean()) / (mel_db.std() + 1e-8)).astype(np.float32)
+
+def silent_audio():
+    """텍스트 전용 시 사용하는 무음 오디오"""
     sr     = AUDIO_PARAMS["sr"]
     target = int(sr * AUDIO_PARAMS["target_duration"])
-    mel    = librosa.feature.melspectrogram(y=np.zeros(target,np.float32),sr=sr,
-               n_mels=AUDIO_PARAMS["n_mels"],n_fft=AUDIO_PARAMS["n_fft"],
-               hop_length=AUDIO_PARAMS["hop_length"],fmin=AUDIO_PARAMS["fmin"],
-               fmax=AUDIO_PARAMS["fmax"])
+    return np.zeros(target, np.float32)
+
+def silent_mel():
+    y   = silent_audio()
+    sr  = AUDIO_PARAMS["sr"]
+    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=AUDIO_PARAMS["n_mels"],
+            n_fft=AUDIO_PARAMS["n_fft"], hop_length=AUDIO_PARAMS["hop_length"],
+            fmin=AUDIO_PARAMS["fmin"], fmax=AUDIO_PARAMS["fmax"])
     return librosa.power_to_db(mel, ref=np.max).astype(np.float32)
 
 def tokenize(text):
     enc  = tok.encode(text or ".")
-    return (np.array([enc.ids],dtype=np.int64),
-            np.array([enc.attention_mask],dtype=np.int64))
+    return (np.array([enc.ids], dtype=np.int64),
+            np.array([enc.attention_mask], dtype=np.int64))
 
-def run_emotion(mel_2d, text):
-    mel_in     = mel_2d[np.newaxis,np.newaxis,:,:]
-    ids, mask  = tokenize(text)
-    logits     = emo_session.run(["logits"],
-                   {"mel":mel_in,"input_ids":ids,"attention_mask":mask})[0][0]
-    probs      = softmax(logits)
-    idx        = int(np.argmax(probs))
-    label_en   = LABELS[idx]
+def run_emotion(audio_data, text):
+    """audio_data: mel 2D array (mel 방식) 또는 waveform 1D array (waveform 방식)"""
+    ids, mask = tokenize(text)
+    if AUDIO_INPUT == "waveform":
+        wav_in = audio_data[np.newaxis, :]          # (1, T)
+        logits = emo_session.run(["logits"],
+                   {"waveform": wav_in, "input_ids": ids, "attention_mask": mask})[0][0]
+    else:
+        mel_in = audio_data[np.newaxis, np.newaxis, :, :]  # (1, 1, 128, T)
+        logits = emo_session.run(["logits"],
+                   {"mel": mel_in, "input_ids": ids, "attention_mask": mask})[0][0]
+    probs    = softmax(logits)
+    idx      = int(np.argmax(probs))
+    label_en = LABELS[idx]
     return label_en, LABEL_KR.get(label_en, label_en), float(probs[idx])
 
 # ── 엔드포인트 ─────────────────────────────────────────────────────
@@ -150,35 +168,33 @@ def run_emotion(mel_2d, text):
 @app.route('/control', methods=['POST'])
 def control_hardware():
     data = request.get_json()
-    action = data.get("action")  # 'off', 'temp_up', 'temp_down' 등
-    value = data.get("value")
+    action = data.get("action")  # 예: "emotion_test" 또는 "vibration", "temp_up", "temp_down"
+    value = data.get("value")    # 예: "Anxiety", "Sadness" 또는 "off"
 
-    print(f"[웹 제어 요청] Action: {action}, Value: {value}")
+    print(f"하드웨어 제어 요청 수신 - Action: {action}, Value: {value}")
 
     if not arduino or not arduino.is_open:
-        return jsonify({"status": "error", "message": "아두이노 미연결"}), 500
+        return jsonify({"status": "error", "message": "아두이노 보드가 연결되어 있지 않습니다."}), 500
 
-    # 1. 멈추기 버튼 처리 (초기 상태 복귀)
     if action == "off" or value == "off":
-        arduino.write(b'0')  
+        arduino.write(b'0')
         hw_status["vibration"] = "off"
         hw_status["heat"] = "off"
         hw_status["current_emotion"] = "Neutral"
-    
-    # 2. 온도 높이기 (+10도) 처리
+        print("[제어] 전체 정지")
     elif action == "temp_up":
         arduino.write(b'+')
-    
-    # 3. 온도 낮추기 (-10도) 처리
+        print("[제어] 온도 UP → 아두이노 '+' 전송")
     elif action == "temp_down":
         arduino.write(b'-')
-        
-    # 4. 수동 감정 제어 (기존 로직 유지)
+        print("[제어] 온도 DOWN → 아두이노 '-' 전송")
     elif value in EMOTION_SIGNAL_MAP:
-        arduino.write(EMOTION_SIGNAL_MAP[value])
+        signal = EMOTION_SIGNAL_MAP[value]
+        arduino.write(signal)
         hw_status["vibration"] = "on"
         hw_status["heat"] = "on"
         hw_status["current_emotion"] = value
+        print(f"[제어] 감정 신호 '{signal}' 전송")
 
     return jsonify({"status": "success", "current_status": hw_status}), 200
 
@@ -194,8 +210,8 @@ def stt():
         text = ' '.join(s.text for s in segments).strip()
         print(f"[STT] {text}")
         try:
-            mel = audio_to_mel(tmp_path)
-            label_en, label_kr, conf = run_emotion(mel, text)
+            audio = load_audio(tmp_path) if AUDIO_INPUT == "waveform" else audio_to_mel(tmp_path)
+            label_en, label_kr, conf = run_emotion(audio, text)
             print(f"[감정] {label_kr} ({conf:.2%})")
 
             # [AI 하드웨어 다이나믹 연동 연산부 추가]
@@ -220,7 +236,8 @@ def analyze_text():
     text = (request.json or {}).get('text','').strip()
     if not text: return jsonify({'error':'텍스트 없음'}), 400
     try:
-        label_en, label_kr, conf = run_emotion(zeros_mel(), text)
+        silent = silent_audio() if AUDIO_INPUT == "waveform" else silent_mel()
+        label_en, label_kr, conf = run_emotion(silent, text)
         print(f"[텍스트 감정] {label_kr} ({conf:.2%})")
 
         # [AI 하드웨어 다이나믹 연동 연산부 추가]

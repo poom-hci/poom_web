@@ -65,15 +65,18 @@ export default function PetProfile({ petInfo, onEdit }) {
   };
 
   /* 추억 메모 */
-  const [memo, setMemo] = useState(() => {
-    try { return localStorage.getItem('poom_memo') || ''; }
-    catch { return ''; }
+  const [draft, setDraft] = useState('');
+  const [memos, setMemos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('poom_memos') || '[]'); }
+    catch { return []; }
   });
 
-  const handleMemoChange = (e) => {
-    const val = e.target.value;
-    setMemo(val);
-    localStorage.setItem('poom_memo', val);
+  const handleSaveMemo = () => {
+    if (!draft.trim()) return;
+    const next = [{ text: draft.trim(), date: new Date().toLocaleDateString('ko-KR') }, ...memos];
+    setMemos(next);
+    localStorage.setItem('poom_memos', JSON.stringify(next));
+    setDraft('');
   };
 
   const together = calcAge(petInfo.birthDate, petInfo.passedDate);
@@ -131,17 +134,32 @@ export default function PetProfile({ petInfo, onEdit }) {
         )}
       </div>
 
-      {/* 추억 메모 — 자유롭게 기억 남기기 */}
+      {/* 추억 메모 */}
       <div className="pp-card">
         <p className="pp-card-title">추억 메모</p>
         <p className="memo-sub">좋아했던 것, 함께한 기억을 자유롭게 적어보세요</p>
         <textarea
           className="memo-textarea"
-          placeholder={"예) 산책을 너무 좋아했어. 공 가져오는 걸 잘했고, 아침마다 발을 핥아줬어..."}
-          value={memo}
-          onChange={handleMemoChange}
-          rows={6}
+          placeholder=""
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          rows={5}
         />
+        <button
+          className="memo-save-btn"
+          onClick={handleSaveMemo}
+          disabled={!draft.trim()}
+        >저장</button>
+        {memos.length > 0 && (
+          <div className="memo-list">
+            {memos.map((m, i) => (
+              <div key={i} className="memo-item">
+                <p className="memo-item-text">{m.text}</p>
+                <p className="memo-item-date">{m.date}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{height: 24}} />
