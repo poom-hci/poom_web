@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:5000';
+export const BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export async function saveDiaryEntry(entry) {
   const now = new Date();

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import './HomePage.css';
-import { saveDiaryEntry, getDiaryEntries } from '../api';
+import { saveDiaryEntry, getDiaryEntries, BASE } from '../api';
 
 export const BREEDS = [
   { id: 'golden',    name: '골든 리트리버', emoji: '🐕' },
@@ -71,7 +71,7 @@ function TalkModal({ petName, onClose, onEmotionResult, onSaved }) {
     const form = new FormData();
     form.append('audio', blob, 'recording.webm');
     try {
-      const res  = await fetch('http://localhost:5000/stt', { method: 'POST', body: form });
+      const res  = await fetch(`${BASE}/stt`, { method: 'POST', body: form });
       const data = await res.json();
       setResult(data);
       if (data.emotion) onEmotionResult?.(data.emotion);
@@ -85,7 +85,7 @@ function TalkModal({ petName, onClose, onEmotionResult, onSaved }) {
     if (!textInput.trim()) return;
     setProcessing(true);
     try {
-      const res  = await fetch('http://localhost:5000/analyze_text', {
+      const res  = await fetch(`${BASE}/analyze_text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textInput }),
@@ -238,7 +238,7 @@ export default function HomePage({ petInfo, theme, onThemeChange, selectedBreed,
   const petName   = petInfo?.name || '우리 아이';
 
   const postControl = (action, value) => {
-    fetch('http://localhost:5000/control', {
+    fetch(`${BASE}/control`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, value }),
