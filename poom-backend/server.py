@@ -150,27 +150,35 @@ def run_emotion(mel_2d, text):
 @app.route('/control', methods=['POST'])
 def control_hardware():
     data = request.get_json()
-    action = data.get("action")  # 예: "emotion_test" 또는 "vibration"
-    value = data.get("value")    # 예: "Anxiety", "Sadness" 또는 "off"
+    action = data.get("action")  # 'off', 'temp_up', 'temp_down' 등
+    value = data.get("value")
 
-    print(f"하드웨어 제어 요청 수신 - Action: {action}, Value: {value}")
+    print(f"[웹 제어 요청] Action: {action}, Value: {value}")
 
     if not arduino or not arduino.is_open:
-        return jsonify({"status": "error", "message": "아두이노 보드가 연결되어 있지 않습니다."}), 500
+        return jsonify({"status": "error", "message": "아두이노 미연결"}), 500
 
-    if value == "off" or action == "off":
-        arduino.write(b'0')  # 전체 정지 신호
+    # 1. 멈추기 버튼 처리 (초기 상태 복귀)
+    if action == "off" or value == "off":
+        arduino.write(b'0')  
         hw_status["vibration"] = "off"
         hw_status["heat"] = "off"
         hw_status["current_emotion"] = "Neutral"
-    else:
-        # 가해진 value 값이 감정 맵에 존재하는지 확인
-        if value in EMOTION_SIGNAL_MAP:
-            signal = EMOTION_SIGNAL_MAP[value]
-            arduino.write(signal)  # 해당 감정 고유 문자 전송 (N, A, S, R, H)
-            hw_status["vibration"] = "on"
-            hw_status["heat"] = "on"
-            hw_status["current_emotion"] = value
+    
+    # 2. 온도 높이기 (+10도) 처리
+    elif action == "temp_up":
+        arduino.write(b'+')
+    
+    # 3. 온도 낮추기 (-10도) 처리
+    elif action == "temp_down":
+        arduino.write(b'-')
+        
+    # 4. 수동 감정 제어 (기존 로직 유지)
+    elif value in EMOTION_SIGNAL_MAP:
+        arduino.write(EMOTION_SIGNAL_MAP[value])
+        hw_status["vibration"] = "on"
+        hw_status["heat"] = "on"
+        hw_status["current_emotion"] = value
 
     return jsonify({"status": "success", "current_status": hw_status}), 200
 
